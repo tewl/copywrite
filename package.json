@@ -1,0 +1,40 @@
+{
+  "name": "copywrite",
+  "version": "1.0.0",
+  "description": "A tool for copy source files",
+  "main": "index.js",
+  "scripts": {
+    "test": "gulp ut"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tewl/copywrite.git"
+  },
+  "keywords": [
+    "source"
+  ],
+  "author": "Kevin Peters <kwpeters@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/tewl/copywrite/issues"
+  },
+  "homepage": "https://github.com/tewl/copywrite#readme",
+  "devDependencies": {
+    "@types/bluebird": "^3.5.24",
+    "@types/lodash": "^4.14.116",
+    "@types/node": "^8.10.29",
+    "del": "^3.0.0",
+    "gulp": "^3.9.1",
+    "gulp-sourcemaps": "^2.6.4",
+    "gulp-typescript": "^5.0.0-alpha.3",
+    "jasmine": "^3.2.0",
+    "strip-json-comments": "^2.0.1",
+    "ts-node": "^7.0.1",
+    "tslint": "^5.11.0",
+    "typescript": "^3.0.3"
+  },
+  "dependencies": {
+    "bluebird": "^3.5.2",
+    "lodash": "^4.17.10"
+  }
+}
