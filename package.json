@@ -24,6 +24,7 @@
     "@types/inquirer": "0.0.43",
     "@types/lodash": "^4.14.116",
     "@types/node": "^8.10.29",
+    "@types/text-table": "^0.2.0",
     "del": "^3.0.0",
     "gulp": "^3.9.1",
     "gulp-sourcemaps": "^2.6.4",
@@ -37,6 +38,7 @@
   "dependencies": {
     "bluebird": "^3.5.2",
     "inquirer": "^6.2.0",
-    "lodash": "^4.17.10"
+    "lodash": "^4.17.10",
+    "text-table": "^0.2.0"
   }
 }
