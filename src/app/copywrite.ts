@@ -1,3 +1,5 @@
+import inquirer = require("inquirer")
+
 import {Directory} from "../lib/directory";
 import {File} from "../lib/file";
 import * as BBPromise from "bluebird";
@@ -34,15 +36,12 @@ function main(): Promise<void> {
             (curCopyOperation) => `${curCopyOperation.source.toString()} ==> ${curCopyOperation.destination.toString()}`
         ).join("\n"));
 
-
-        //
-        // todo: Prompt the user to confirm to continue.
-        //
-
+        return promptToContinue("Copy files?", copyOperations);
+    })
+    .then((copyOperations) => {
         const copyPromises = _.map(copyOperations,
             (curCopyOperation) => curCopyOperation.execute()
         );
-
         return BBPromise.all(copyPromises);
     })
     .then((dstFiles) => {
@@ -112,3 +111,29 @@ function getFileMap(dstDir: Directory): Promise<{[s: string]: File}> {
     });
 }
 
+
+
+/**
+ * Helper function that prompts the user to confirm whether they want to
+ * continue.
+ * @return {Promise<void>} A Promise that is resolved if the user wishes to
+ * continue and is rejected if they decline.
+ */
+function promptToContinue<T>(message: string, resolveValue: T): Promise<T> {
+    const questionConfirmation = {
+        type: "confirm",
+        name: "confirm",
+        message: message || "Continue?"
+    };
+
+
+    return inquirer.prompt<{confirm: boolean}>([questionConfirmation])
+    .then((answers) => {
+        if (!answers.confirm) {
+            throw "Operation cancelled by user.";
+        }
+        else {
+            return resolveValue;
+        }
+    });
+}
