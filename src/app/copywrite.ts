@@ -15,6 +15,9 @@ function main(): Promise<void> {
         const srcMap = result[0];
         const dstMap = result[1];
 
+        // TODO: Give the user a preview of what files are about to be copied
+        // and let them choose whether to proceed.
+
         const copyPromises = _.reduce<string, Array<Promise<File>>>(
             Object.keys(dstMap),
             (acc, curDstFileName) => {
@@ -72,6 +75,8 @@ function getCmdLineArgs(): Promise<{srcDir: Directory, dstDir: Directory}> {
 }
 
 
+// TODO: What should be done if the same filename is seen in multiple
+// directories?
 function getFileMap(dstDir: Directory): Promise<{[s: string]: File}> {
     return dstDir.files(true)
     .then((dstFiles) => {
