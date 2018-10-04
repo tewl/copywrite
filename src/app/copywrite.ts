@@ -2,6 +2,7 @@ import {Directory} from "../lib/directory";
 import {File} from "../lib/file";
 import * as BBPromise from "bluebird";
 import * as _ from "lodash";
+import {CopyOperation} from "./copyOperation";
 
 
 function main(): Promise<void> {
@@ -15,20 +16,33 @@ function main(): Promise<void> {
         const srcMap = result[0];
         const dstMap = result[1];
 
-        // TODO: Give the user a preview of what files are about to be copied
-        // and let them choose whether to proceed.
-
-        const copyPromises = _.reduce<string, Array<Promise<File>>>(
+        const copyOperations: Array<CopyOperation> = _.reduce<string, Array<CopyOperation>>(
             Object.keys(dstMap),
             (acc, curDstFileName) => {
                 if (srcMap[curDstFileName]) {
-                    const copyPromise = srcMap[curDstFileName].copy(dstMap[curDstFileName]);
-                    acc.push(copyPromise);
+                    const copyOperation = new CopyOperation(srcMap[curDstFileName], dstMap[curDstFileName]);
+                    acc.push(copyOperation);
                 }
                 return acc;
             },
             []
         );
+
+        // Print a preview of the operations that are about to happen.
+        console.log(_.map(
+            copyOperations,
+            (curCopyOperation) => `${curCopyOperation.source.toString()} ==> ${curCopyOperation.destination.toString()}`
+        ).join("\n"));
+
+
+        //
+        // todo: Prompt the user to confirm to continue.
+        //
+
+        const copyPromises = _.map(copyOperations,
+            (curCopyOperation) => curCopyOperation.execute()
+        );
+
         return BBPromise.all(copyPromises);
     })
     .then((dstFiles) => {
@@ -48,6 +62,13 @@ main()
 
 
 function getCmdLineArgs(): Promise<{srcDir: Directory, dstDir: Directory}> {
+
+    if (!process.argv[2] || !process.argv[3]) {
+        console.log("Usage:");
+        console.log("copywrite.ts source_dir destination_dir");
+        process.exit(-1);
+    }
+
     const srcDir = new Directory(process.argv[2]);
     const dstDir = new Directory(process.argv[3]);
 
@@ -59,12 +80,12 @@ function getCmdLineArgs(): Promise<{srcDir: Directory, dstDir: Directory}> {
 
         const srcDirExists = !!results[0];
         if (!srcDirExists) {
-            throw `Source directory ${srcDir.toString()} does not exist.`;
+            throw new Error(`Source directory ${srcDir.toString()} does not exist.`);
         }
 
         const dstDirExists = !!results[1];
         if (!dstDirExists) {
-            throw `Destination directory ${dstDir.toString()} does not exist.`;
+            throw new Error(`Destination directory ${dstDir.toString()} does not exist.`);
         }
 
         return {
