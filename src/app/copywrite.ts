@@ -1,4 +1,5 @@
 import inquirer = require("inquirer")
+import table = require("text-table")
 
 import {Directory} from "../lib/directory";
 import {File} from "../lib/file";
@@ -31,12 +32,14 @@ function main(): Promise<void> {
         );
 
         // Print a preview of the operations that are about to happen.
-        console.log(_.map(
-            copyOperations,
-            (curCopyOperation) => `${curCopyOperation.source.toString()} ==> ${curCopyOperation.destination.toString()}`
-        ).join("\n"));
+        const rows = _.map(copyOperations, (curCopyOperation) => {
+            return [curCopyOperation.source.toString(), curCopyOperation.destination.toString()];
+        });
+        const previewTable = table(rows, {hsep: " ==> "});
 
-        return promptToContinue("Copy files?", copyOperations);
+        console.log("");
+        console.log(previewTable);
+        return promptToContinue("Proceed with copying files?", copyOperations);
     })
     .then((copyOperations) => {
         const copyPromises = _.map(copyOperations,
@@ -52,8 +55,6 @@ function main(): Promise<void> {
 
 
 main()
-.then(() => {
-})
 .catch((err) => {
     console.log(err);
     process.exit(-1);
