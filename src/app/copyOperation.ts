@@ -1,14 +1,13 @@
 import {File} from "../lib/file";
-import {Directory} from "../lib/directory";
-
+import * as BBPromise from "bluebird";
 
 export class CopyOperation {
 
     private readonly _src: File;
-    private readonly _dst: Directory | File;
+    private readonly _dst: File;
 
 
-    constructor(src: File, dst: Directory | File) {
+    constructor(src: File, dst: File) {
         this._src = src;
         this._dst = dst;
     }
@@ -19,7 +18,7 @@ export class CopyOperation {
     }
 
 
-    public get destination(): Directory | File {
+    public get destination(): File {
         return this._dst;
     }
 
@@ -29,4 +28,13 @@ export class CopyOperation {
     }
 
 
+    public filesAreIdentical(): Promise<boolean> {
+        return BBPromise.all([
+            this._src.getHash(),
+            this._dst.getHash()
+        ])
+        .then(([srcHash, dstHash]) => {
+            return srcHash === dstHash;
+        });
+    }
 }

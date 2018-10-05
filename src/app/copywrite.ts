@@ -15,13 +15,13 @@ function main(): Promise<void> {
         const dstMapPromise = getFileMap(args.dstDir);
         return BBPromise.all([srcMapPromise, dstMapPromise]);
     })
-    .then((result) => {
-        const srcMap = result[0];
-        const dstMap = result[1];
+    .then(([srcMap, dstMap]) => {
 
-        const copyOperations: Array<CopyOperation> = _.reduce<string, Array<CopyOperation>>(
+        let copyOperations: Array<CopyOperation> = _.reduce<string, Array<CopyOperation>>(
             Object.keys(dstMap),
             (acc, curDstFileName) => {
+                // If the current destination file is also a source file, create
+                // a copy operation for it.
                 if (srcMap[curDstFileName]) {
                     const copyOperation = new CopyOperation(srcMap[curDstFileName], dstMap[curDstFileName]);
                     acc.push(copyOperation);
@@ -31,15 +31,37 @@ function main(): Promise<void> {
             []
         );
 
-        // Print a preview of the operations that are about to happen.
-        const rows = _.map(copyOperations, (curCopyOperation) => {
-            return [curCopyOperation.source.toString(), curCopyOperation.destination.toString()];
-        });
-        const previewTable = table(rows, {hsep: " ==> "});
+        const areIdenticalPromises = _.map(copyOperations,
+            (curCopyOperation) => curCopyOperation.filesAreIdentical()
+        );
+        return BBPromise.all(areIdenticalPromises)
+        .then((areIdenticalResults) => {
+            copyOperations = _.filter(copyOperations,
+                // Keep the copy operations where the files are not identical.
+                (curCopyOperation, index) => !areIdenticalResults[index]
+            );
 
+            return copyOperations;
+        });
+    })
+    .then((copyOperations) => {
+        // Print a preview of the operations that are about to happen.
         console.log("");
-        console.log(previewTable);
-        return promptToContinue("Proceed with copying files?", copyOperations);
+        if (copyOperations.length === 0) {
+            console.log("All files are identical.");
+            return copyOperations;
+        }
+        else {
+            const rows = _.map(copyOperations, (curCopyOperation) => {
+                return [curCopyOperation.source.toString(), curCopyOperation.destination.toString()];
+            });
+            const previewTable = table(rows, {hsep: " ==> "});
+            console.log(previewTable);
+            return promptToContinue(
+                `Proceed with copying ${copyOperations.length} files?`,
+                copyOperations
+            );
+        }
     })
     .then((copyOperations) => {
         const copyPromises = _.map(copyOperations,
@@ -48,8 +70,7 @@ function main(): Promise<void> {
         return BBPromise.all(copyPromises);
     })
     .then((dstFiles) => {
-        console.log("Updated the following files:");
-        console.log(_.map(dstFiles, (dstFile: File) => dstFile.absPath()).join("\n"));
+        console.log(`Copied ${dstFiles.length} files.`);
     });
 }
 
