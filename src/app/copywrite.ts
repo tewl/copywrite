@@ -85,6 +85,8 @@ main()
 function getCmdLineArgs(): Promise<{srcDir: Directory, dstDir: Directory}> {
 
     if (!process.argv[2] || !process.argv[3]) {
+        console.log("copywrite is a tool that updates files found in destination_dir with the " +
+                    "version found in source_dir");
         console.log("Usage:");
         console.log("copywrite.ts source_dir destination_dir");
         process.exit(-1);
