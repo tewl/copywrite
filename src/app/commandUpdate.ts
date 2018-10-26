@@ -12,6 +12,14 @@ export const command = "update <sourceDir> <destDir>";
 export const describe = "Update the files in destDir with the version from sourceDir";
 export function builder(argv: Argv) {
     return argv
+    .positional("sourceDir", {
+        describe: "The source directory",
+        type: "string"
+    })
+    .positional("destDir", {
+        describe: "The destination directory",
+        type: "string"
+    })
     .check(
         (argv: Arguments) => {
             const sourceDir = new Directory(argv.sourceDir);
@@ -25,18 +33,11 @@ export function builder(argv: Argv) {
                 throw new Error(`The destination directory "${destDir.toString()}" does not exist.`);
             }
 
+            // If we got this far, everything is valid.
             return true;
         },
         false
-    )
-    .positional("sourceDir", {
-        describe: "The source directory",
-        type: "string"
-    })
-    .positional("destDir", {
-        describe: "The destination directory",
-        type: "string"
-    });
+    );
 }
 
 export function handler(args: Arguments) {
