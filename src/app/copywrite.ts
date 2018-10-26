@@ -7,4 +7,4 @@ import * as commandFull from "./commandFull";
 yargs
 .command(commandUpdate)
 .command(commandFull)
-.help().argv;
+.help().argv;    // tslint:disable-line:no-unused-expression

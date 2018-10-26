@@ -3,7 +3,7 @@ import {Directory} from "../depot/directory";
 
 export const command = "full <sourceDir> <destDir>";
 export const describe = "Empty destDir and copy all contents of sourceDir into it";
-export function builder(argv: Argv) {
+export function builder(argv: Argv): Argv {
     return argv
     .positional("sourceDir", {
         describe: "The source directory",
@@ -33,7 +33,7 @@ export function builder(argv: Argv) {
     );
 }
 
-export function handler(args: Arguments) {
+export function handler(args: Arguments): void {
 
     const sourceDir = new Directory(args.sourceDir);
     const destDir = new Directory(args.destDir);

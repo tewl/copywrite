@@ -10,7 +10,7 @@ import {promptToContinue} from "../depot/prompts";
 
 export const command = "update <sourceDir> <destDir>";
 export const describe = "Update the files in destDir with the version from sourceDir";
-export function builder(argv: Argv) {
+export function builder(argv: Argv): Argv {
     return argv
     .positional("sourceDir", {
         describe: "The source directory",
@@ -40,7 +40,7 @@ export function builder(argv: Argv) {
     );
 }
 
-export function handler(args: Arguments) {
+export function handler(args: Arguments): void {
 
     // Get file maps for both the source and destination directories.
     const sourceDir: Directory = new Directory(args.sourceDir);
