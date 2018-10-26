@@ -5,23 +5,6 @@ export const command = "full <sourceDir> <destDir>";
 export const describe = "Empty destDir and copy all contents of sourceDir into it";
 export function builder(argv: Argv) {
     return argv
-    .check(
-        (argv: Arguments) => {
-            const srcDir = new Directory(argv.sourceDir);
-            const destDir = new Directory(argv.destDir);
-
-            if (!srcDir.existsSync()) {
-                throw new Error(`The source directory "${srcDir.toString()}" does not exist.`);
-            }
-
-            if (!destDir.existsSync()) {
-                throw new Error(`The destination directory "${destDir.toString()}" does not exist.`);
-            }
-
-            return true;
-        },
-        false
-    )
     .positional("sourceDir", {
         describe: "The source directory",
         type: "string"
@@ -29,14 +12,34 @@ export function builder(argv: Argv) {
     .positional("destDir", {
         describe: "The destination directory",
         type: "string"
-    });
+    })
+    .check(
+        (argv: Arguments) => {
+            const sourceDir = new Directory(argv.sourceDir);
+            const destDir = new Directory(argv.destDir);
+
+            if (!sourceDir.existsSync()) {
+                throw new Error(`The source directory "${sourceDir.toString()}" does not exist.`);
+            }
+
+            if (!destDir.existsSync()) {
+                throw new Error(`The destination directory "${destDir.toString()}" does not exist.`);
+            }
+
+            // If we got this far, everything is valid.
+            return true;
+        },
+        false
+    );
 }
 
 export function handler(args: Arguments) {
-    console.log("full handler invoked!");
-    console.log("args:", args);
 
-    // TODO: Implement this handler.
-    // - empty the destination directory
-    // - copy all files in source directory into destination directory (recursively)
+    const sourceDir = new Directory(args.sourceDir);
+    const destDir = new Directory(args.destDir);
+
+    destDir.empty()
+    .then(() => {
+        return sourceDir.copy(destDir, false);
+    });
 }
