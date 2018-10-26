@@ -1,5 +1,5 @@
-import inquirer = require("inquirer")
-import table = require("text-table")
+import * as inquirer from "inquirer";
+import * as table from "text-table";
 
 import {Directory} from "../lib/directory";
 import {File} from "../lib/file";
@@ -150,11 +150,10 @@ function promptToContinue<T>(message: string, resolveValue: T): Promise<T> {
         message: message || "Continue?"
     };
 
-
     return inquirer.prompt<{confirm: boolean}>([questionConfirmation])
     .then((answers) => {
         if (!answers.confirm) {
-            throw "Operation cancelled by user.";
+            throw "Operation cancelled by user.";  // tslint:disable-line:no-string-throw
         }
         else {
             return resolveValue;
