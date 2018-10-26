@@ -35,4 +35,8 @@ export function builder(argv: Argv) {
 export function handler(args: Arguments) {
     console.log("full handler invoked!");
     console.log("args:", args);
+
+    // TODO: Implement this handler.
+    // - empty the destination directory
+    // - copy all files in source directory into destination directory (recursively)
 }
