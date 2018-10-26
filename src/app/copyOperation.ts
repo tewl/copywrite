@@ -1,4 +1,4 @@
-import {File} from "../lib/file";
+import {File} from "../depot/file";
 import * as BBPromise from "bluebird";
 
 export class CopyOperation {

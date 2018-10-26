@@ -1,8 +1,8 @@
 import * as inquirer from "inquirer";
 import * as table from "text-table";
 
-import {Directory} from "../lib/directory";
-import {File} from "../lib/file";
+import {Directory} from "../depot/directory";
+import {File} from "../depot/file";
 import * as BBPromise from "bluebird";
 import * as _ from "lodash";
 import {CopyOperation} from "./copyOperation";
