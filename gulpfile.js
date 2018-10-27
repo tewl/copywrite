@@ -1,3 +1,4 @@
+require('ts-node').register();   // Allow use of TS files
 const fs = require("fs");
 const cp = require("child_process");
 const path = require("path");
@@ -118,6 +119,9 @@ gulp.task("build", () => {
     .then(() => {
         // Everything seems ok.  Go ahead and compile.
         return compileTypeScript();
+    })
+    .then(() => {
+        return makeExecutable();
     });
 
 });
@@ -132,6 +136,9 @@ gulp.task("compile", () => {
     .then(() => {
         // Everything seems ok.  Go ahead and compile.
         return compileTypeScript();
+    })
+    .then(() => {
+        return makeExecutable();
     });
 });
 
@@ -179,6 +186,15 @@ function compileTypeScript() {
     });
 
     return Promise.all([tsResultDfd.promise, jsDfd.promise, dtsDfd.promise]);
+}
+
+
+function makeExecutable() {
+    const {File} = require("./devLib/file");
+    const {makeNodeScriptExecutable} = require("./devLib/nodeUtil");
+
+    const executableFile = new File("dist", "app", "copywrite.js");
+    return makeNodeScriptExecutable(executableFile);
 }
 
 
