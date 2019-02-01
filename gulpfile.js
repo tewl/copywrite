@@ -210,7 +210,7 @@ function getSrcGlobs(includeSpecs, includeLib) {
         srcGlobs.push("!src/**/*.spec.ts");
     }
     if (!includeLib) {
-        srcGlobs.push("!src/lib/**/*.ts");
+        srcGlobs.push("!src/depot/**/*.ts");
     }
 
 
