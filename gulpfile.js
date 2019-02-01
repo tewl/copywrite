@@ -107,39 +107,42 @@ function runUnitTests() {
 
 gulp.task("build", () => {
 
+    let errorsEncountered = false;
+
     return clean()
     .then(() => {
         // Do not build if there are TSLint errors.
         return runTslint(true)
+        .catch(() => {
+            errorsEncountered = true;
+        });
     })
     .then(() => {
         // Do not build if the unit tests are failing.
-        return runUnitTests();
+        return runUnitTests()
+        .catch(() => {
+            errorsEncountered = true;
+        });
     })
     .then(() => {
         // Everything seems ok.  Go ahead and compile.
-        return compileTypeScript();
+        return compileTypeScript()
+        .catch(() => {
+            errorsEncountered = true;
+        });
     })
     .then(() => {
-        return makeExecutable();
+        return makeExecutable()
+        .catch(() => {
+            errorsEncountered = true;
+        });
+    })
+    .then(() => {
+        if (errorsEncountered) {
+            throw "Errors encountered."
+        }
     });
 
-});
-
-
-gulp.task("compile", () => {
-    return clean()
-    .then(() => {
-        // Do not build if there are TSLint errors.
-        return runTslint(true)
-    })
-    .then(() => {
-        // Everything seems ok.  Go ahead and compile.
-        return compileTypeScript();
-    })
-    .then(() => {
-        return makeExecutable();
-    });
 });
 
 
