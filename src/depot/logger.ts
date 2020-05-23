@@ -1,3 +1,11 @@
+import {inspect} from "util";
+import * as _ from "lodash";
+
+
+export type LogListenerFunc    = (logMessage: string) => void;
+export type RemoveListenerFunc = () => void;
+
+
 /**
  * Levels controlling what log messages are written to stdout.
  */
@@ -15,7 +23,6 @@ Object.freeze(LogLevel);
 
 /**
  * Labels used to identify the severity of each log message
- * @type {string[]}
  */
 const levelLabels: Array<string> = [
     "OFF",
@@ -29,28 +36,42 @@ const levelLabels: Array<string> = [
 Object.freeze(levelLabels);
 
 
-export class Logger {
-
+export class Logger
+{
     // region Private Data Members
-    private _logLevelStack: Array<LogLevel> = [];
-    private _defaultLogLevel: LogLevel = LogLevel.WARN_2;
+    private readonly _logLevelStack: Array<LogLevel>    = [];
+    private readonly _defaultLogLevel: LogLevel         = LogLevel.WARN_2;
+    private readonly _listeners: Array<LogListenerFunc> = [];
     // endregion
 
 
-    public constructor() {
-        Object.seal(this);
+    public constructor()
+    {
     }
 
-    /**
-     * Resets this logger to its default state.
-     */
-    public reset(): void {
 
-        if (this._logLevelStack === undefined) {
-            this._logLevelStack = [];
-        } else {
-            this._logLevelStack.length = 0;
-        }
+    public addListener(listener: LogListenerFunc): RemoveListenerFunc
+    {
+        this._listeners.push(listener);
+
+        return () => {
+            _.pull(this._listeners, listener);
+        };
+    }
+
+
+    public numListeners(): number
+    {
+        return this._listeners.length;
+    }
+
+
+    /**
+     * Resets the logging level to its default state.
+     */
+    public reset(): void
+    {
+        this._logLevelStack.length = 0;
     }
 
 
@@ -59,7 +80,8 @@ export class Logger {
      * its previous state, call pop().
      * @param newLogLevel - The new state of this logger
      */
-    public pushLogLevel(newLogLevel: LogLevel): void {
+    public pushLogLevel(newLogLevel: LogLevel): void
+    {
         this._logLevelStack.push(newLogLevel);
     }
 
@@ -67,7 +89,8 @@ export class Logger {
     /**
      * Restores this logger's state to the previous state.
      */
-    public pop(): void {
+    public pop(): void
+    {
         if (this._logLevelStack.length > 0) {
             this._logLevelStack.pop();
         }
@@ -77,9 +100,10 @@ export class Logger {
     /**
      * Gets the current severity level for this logger.  All messages with a
      * higher or equal severity will be logged.
-     * @returns {LogLevel} The current severity level
+     * @returns The current severity level
      */
-    public getCurrentLevel(): LogLevel {
+    public getCurrentLevel(): LogLevel
+    {
         if (this._logLevelStack.length > 0) {
             return this._logLevelStack[this._logLevelStack.length - 1];
         } else {
@@ -88,67 +112,106 @@ export class Logger {
 
     }
 
-    /**
-     * Logs a message with severity level ERROR_0.
-     * @param msg - The message to be logged
-     * @returns {boolean} Whether the message was logged given current logger settings.
-     */
-    public error(msg: string): boolean { return this.log(LogLevel.ERROR_1, msg); }
 
     /**
-     * Logs a message with severity level WARN_1.
+     * Logs a message with severity level ERROR_1.
      * @param msg - The message to be logged
-     * @returns {boolean} Whether the message was logged given current logger settings.
+     * @param optionalParams - Additional values to be logged
+     * @returns Whether the message was logged given current logger settings.
      */
-    public warn(msg: string): boolean { return this.log(LogLevel.WARN_2, msg); }
+    public error(msg: string, ...optionalParams: Array<any>): boolean
+    {
+        return this.log(LogLevel.ERROR_1, msg, ...optionalParams);
+    }
+
 
     /**
-     * Logs a message with severity level INFO_2.
+     * Logs a message with severity level WARN_2.
      * @param msg - The message to be logged
-     * @returns {boolean} Whether the message was logged given current logger settings.
+     * @param optionalParams - Additional values to be logged
+     * @returns Whether the message was logged given current logger settings.
      */
-    public info(msg: string): boolean { return this.log(LogLevel.INFO_3, msg); }
+    public warn(msg: string, ...optionalParams: Array<any>): boolean
+    {
+        return this.log(LogLevel.WARN_2, msg, ...optionalParams);
+    }
+
 
     /**
-     * Logs a message with severity level VERBOSE_3.
+     * Logs a message with severity level INFO_3.
      * @param msg - The message to be logged
-     * @returns {boolean} Whether the message was logged given current logger settings.
+     * @param optionalParams - Additional values to be logged
+     * @returns Whether the message was logged given current logger settings.
      */
-    public verbose(msg: string): boolean { return this.log(LogLevel.VERBOSE_4, msg); }
+    public info(msg: string, ...optionalParams: Array<any>): boolean
+    {
+        return this.log(LogLevel.INFO_3, msg, ...optionalParams);
+    }
+
 
     /**
-     * Logs a message with severity level DEBUG_4.
+     * Logs a message with severity level VERBOSE_4.
      * @param msg - The message to be logged
-     * @returns {boolean} Whether the message was logged given current logger settings.
+     * @param optionalParams - Additional values to be logged
+     * @returns Whether the message was logged given current logger settings.
      */
-    public debug(msg: string): boolean { return this.log(LogLevel.DEBUG_5, msg); }
+    public verbose(msg: string, ...optionalParams: Array<any>): boolean
+    {
+        return this.log(LogLevel.VERBOSE_4, msg, ...optionalParams);
+    }
+
 
     /**
-     * Logs a message with severity level SILLY_5.
+     * Logs a message with severity level DEBUG_5.
      * @param msg - The message to be logged
-     * @returns {boolean} Whether the message was logged given current logger settings.
+     * @param optionalParams - Additional values to be logged
+     * @returns Whether the message was logged given current logger settings.
      */
-    public silly(msg: string): boolean { return this.log(LogLevel.SILLY_6, msg); }
+    public debug(msg: string, ...optionalParams: Array<any>): boolean
+    {
+        return this.log(LogLevel.DEBUG_5, msg, ...optionalParams);
+    }
+
+
+    /**
+     * Logs a message with severity level SILLY_6.
+     * @param msg - The message to be logged
+     * @param optionalParams - Additional values to be logged
+     * @returns Whether the message was logged given current logger settings.
+     */
+    public silly(msg: string, ...optionalParams: Array<any>): boolean
+    {
+        return this.log(LogLevel.SILLY_6, msg, ...optionalParams);
+    }
 
 
     // region Private Methods
 
     /**
      * Helper method that implements logging logic
-     * @param {LogLevel} level - The severity level of the logged message
-     * @param {string} msg - The message to log
-     * @returns {boolean} Whether the message was logged.
+     * @param level - The severity level of the logged message
+     * @param msg - The message to log
+     * @param optionalParams - Additional values to be logged
+     * @returns Whether the message was logged.
      */
-    private log(level: LogLevel, msg: string): boolean {
-
+    private log(level: LogLevel, msg: string, ...optionalParams: Array<any>): boolean
+    {
         const curLogLevel: LogLevel = this.getCurrentLevel();
 
         if (level > curLogLevel) {
             return false;
         }
 
+        const optStr = _.map(optionalParams, (curParam) => inspect(curParam)).join(" ");
+        if (optStr.length > 0) {
+            msg += " " + optStr;
+        }
+
         if (msg.length > 0) {
-            console.log(getTimestamp() + " (" + levelLabels[level] + ") " + msg);
+            const logMessage = getTimestamp() + " (" + levelLabels[level] + ") " + msg;
+            _.forEach(this._listeners, (curListener) => {
+                curListener(logMessage);
+            });
         }
 
         return true;
@@ -160,19 +223,12 @@ export class Logger {
 Object.freeze(Logger.prototype);
 
 
-/**
- * The one-and-only exported instance (singleton).
- * @type {Logger}
- */
-export const logger: Logger = new Logger();
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // Helper methods
 ////////////////////////////////////////////////////////////////////////////////
 
-function getTimestamp(): string {
-    "use strict";
+function getTimestamp(): string
+{
     return new Date().toISOString();
 }
 

@@ -3,23 +3,38 @@ import * as path from "path";
 import * as crypto from "crypto";
 import * as BBPromise from "bluebird";
 import {ListenerTracker} from "./listenerTracker";
-import {promisify1, promisify3} from "./promiseHelpers";
+import {promisify1} from "./promiseHelpers";
 import {Directory} from "./directory";
 import {PathPart, reducePathParts} from "./pathHelpers";
 
 
 const unlinkAsync = promisify1<void, string>(fs.unlink);
 const statAsync   = promisify1<fs.Stats, string>(fs.stat);
-const utimesAsync = promisify3<void, string, string | number | Date, string | number | Date>(fs.utimes);
-const writeFileAsync = promisify3<
-    void,
-    fs.PathLike | number, any,
-    { encoding?: string | null; mode?: number | string; flag?: string; } | string | undefined | null
-    >(fs.writeFile);
 
 
 export class File
 {
+    public static relative(from: Directory, to: File): File
+    {
+        const relPath = path.relative(from.toString(), to.toString());
+        return new File(relPath);
+    }
+
+
+    /**
+     * Calculates the parts of the relative path from `from` to `to`.
+     * @param from - The starting point
+     * @param to - The ending point
+     * @return An array of strings representing the path segments needed to get
+     * from `from` to `to`.
+     */
+    public static relativeParts(from: Directory, to: File): Array<string>
+    {
+        const relPath = path.relative(from.toString(), to.toString());
+        return relPath.split(path.sep);
+    }
+
+
     // region Data Members
     private readonly _filePath: string;
     // endregion
@@ -140,6 +155,38 @@ export class File
                 throw err;
             }
         }
+    }
+
+
+    /**
+     * Sets the access mode bits for this file
+     * @param mode - Numeric value representing the new access modes.  See
+     * fs.constants.S_I*.
+     * @return A promise for this file (for easy chaining)
+     */
+    public chmod(mode: number): Promise<File>
+    {
+        return new BBPromise((resolve, reject) => {
+            fs.chmod(this._filePath, mode, (err) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+
+                resolve(this);
+            });
+        });
+    }
+
+
+    /**
+     * Sets the access mode bits for this file
+     * @param mode - Numeric value representing the new access modes.  See
+     * fs.constants.S_I*.
+     * @return A promise for this file (for easy chaining)
+     */
+    public chmodSync(mode: number): void {
+        fs.chmodSync(this._filePath, mode);
     }
 
 
@@ -443,7 +490,15 @@ export class File
     {
         return this.directory.ensureExists()
         .then(() => {
-            return writeFileAsync(this._filePath, text, "utf8");
+            return new BBPromise<void>((resolve, reject) => {
+                fs.writeFile(this._filePath, text, "utf8", (err) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        resolve();
+                    }
+                });
+            });
         });
     }
 
@@ -500,7 +555,7 @@ export class File
             hash.setEncoding("hex");
 
             input
-            .on("error", (error) => {
+            .on("error", (error: any) => {
                 reject(new Error(error));
             })
             .on("end", () => {
@@ -512,6 +567,21 @@ export class File
             input
             .pipe(hash);
         });
+    }
+
+
+    /**
+     * Calculates a hash of this file's contents
+     * @param algorithm - The hashing algorithm to use.  For example, "md5",
+     * "sha256", "sha512".  To see algorithms available on your platform, run
+     * `openssl list-message-digest-algorithms`.
+     * @return A hexadecimal string containing the hash
+     */
+    public getHashSync(algorithm: string = "md5"): string {
+        const fileData = fs.readFileSync(this._filePath);
+        const hash = crypto.createHash(algorithm);
+        hash.update(fileData);
+        return hash.digest("hex");
     }
 
 
@@ -549,7 +619,7 @@ export class File
 
     /**
      * Reads JSON data from this file.  Rejects if this file does not exist.
-     * @return {Promise<T>} A promise for the parsed data contained in this file
+     * @return A promise for the parsed data contained in this file
      */
     public readJson<T>(): Promise<T>
     {
@@ -562,7 +632,7 @@ export class File
 
     /**
      * Reads JSON data from this file.  Throws if this file does not exist.
-     * @return {T} The parsed data contained in this file
+     * @return The parsed data contained in this file
      */
     public readJsonSync<T>(): T
     {
@@ -639,7 +709,15 @@ function copyFile(sourceFilePath: string, destFilePath: string, options?: ICopyO
                 // by 1000 below and truncation happens, we are actually setting
                 // dest's timestamps *before* those of of source.
                 //
-                return utimesAsync(destFilePath, srcStats.atime.valueOf() / 1000, srcStats.mtime.valueOf() / 1000);
+                return new BBPromise<void>((resolve, reject) => {
+                    fs.utimes(destFilePath, srcStats.atime.valueOf() / 1000, srcStats.mtime.valueOf() / 1000, (err) => {
+                        if (err) {
+                            reject(err);
+                        } else {
+                            resolve();
+                        }
+                    });
+                });
             });
         }
     });
