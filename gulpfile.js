@@ -213,8 +213,8 @@ function compileTypeScript() {
 
 
 function makeExecutable() {
-    const {File} = require("./devLib/file");
-    const {makeNodeScriptExecutable} = require("./devLib/nodeUtil");
+    const {File} = require("./dev/depot/file");
+    const {makeNodeScriptExecutable} = require("./dev/depot/nodeUtil");
 
     const executableFile = new File("dist", "app", "copywrite.js");
     return makeNodeScriptExecutable(executableFile);
