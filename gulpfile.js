@@ -1,12 +1,15 @@
-require('ts-node').register();   // Allow use of TS files
-const fs = require("fs");
-const cp = require("child_process");
 const path = require("path");
+// Allow use of TS files.
+require('ts-node').register({project: path.join(__dirname, "tsconfig.json")});
+const fs = require("fs");
 const gulp = require("gulp");
 const stripJsonComments = require("strip-json-comments");
 const del = require("del");
 const _ = require("lodash");
-
+const spawn = require("./dev/depot/spawn").spawn;
+const Deferred = require("./dev/depot/deferred").Deferred;
+const toGulpError = require("./dev/depot/gulpHelpers").toGulpError;
+const nodeBinForOs = require("./dev/depot/nodeUtil").nodeBinForOs;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Default
@@ -54,26 +57,27 @@ gulp.task("tslint", function ()
 
 function runTslint(emitError)
 {
+    console.log("Running TSLint...");
+
     "use strict";
     let tslintArgs = [
         "--project", "./tsconfig.json",
         "--format", "stylish"
     ];
 
-
     // Add the globs defining source files to the list of arguments.
     tslintArgs = tslintArgs.concat(getSrcGlobs(true, false));
 
-    return spawn(
-        "./node_modules/.bin/tslint",
-        tslintArgs,
-        __dirname
-    )
+    let cmd = path.join(".", "node_modules", ".bin", "tslint");
+    cmd = nodeBinForOs(cmd).toString();
+    return spawn(cmd, tslintArgs, {cwd: __dirname},
+                 undefined, process.stdout, process.stderr)
+    .closePromise
     .catch((err) => {
         // If we're supposed to emit an error, then go ahead and rethrow it.
         // Otherwise, just eat it.
         if (emitError) {
-            throw err;
+            throw toGulpError(err, "One or more TSLint errors found.");
         }
     });
 }
@@ -89,15 +93,29 @@ gulp.task("ut", () => {
 
 
 function runUnitTests() {
-    return spawn(
-        "./node_modules/.bin/ts-node",
-        [
-            "./node_modules/.bin/jasmine",
-            "JASMINE_CONFIG_PATH=test/ut/jasmine.json"
-        ],
-        __dirname
+    const Jasmine = require("jasmine");
+    const runJasmine = require("./dev/depot/jasmineHelpers").runJasmine;
+
+    console.log("Running unit tests...");
+
+    const jasmine = new Jasmine({});
+    jasmine.loadConfig(
+        {
+            "spec_dir": "src",
+            "spec_files": [
+                "**/*.spec.ts"
+            ],
+            "helpers": [
+            ],
+            "stopSpecOnExpectationFailure": false,
+            "random": false
+        }
     );
 
+    return runJasmine(jasmine)
+    .catch((err) => {
+        throw toGulpError(err, "One or more unit test failures.");
+    });
 }
 
 
@@ -107,39 +125,36 @@ function runUnitTests() {
 
 gulp.task("build", () => {
 
-    let errorsEncountered = false;
+    let firstError;
 
     return clean()
     .then(() => {
-        // Do not build if there are TSLint errors.
-        return runTslint(true)
-        .catch(() => {
-            errorsEncountered = true;
-        });
+        return runTslint(true);
+    })
+    .catch((err) => {
+        firstError = firstError || err;
     })
     .then(() => {
-        // Do not build if the unit tests are failing.
-        return runUnitTests()
-        .catch(() => {
-            errorsEncountered = true;
-        });
+        return runUnitTests();
+    })
+    .catch((err) => {
+        firstError = firstError || err;
     })
     .then(() => {
-        // Everything seems ok.  Go ahead and compile.
-        return compileTypeScript()
-        .catch(() => {
-            errorsEncountered = true;
-        });
+        return compileTypeScript();
+    })
+    .catch((err) => {
+        firstError = firstError || err;
     })
     .then(() => {
-        return makeExecutable()
-        .catch(() => {
-            errorsEncountered = true;
-        });
+        return makeExecutable();
+    })
+    .catch((err) => {
+        firstError = firstError || err;
     })
     .then(() => {
-        if (errorsEncountered) {
-            throw "Errors encountered."
+        if (firstError) {
+            throw toGulpError(firstError, "One or more build tasks failed.");
         }
     });
 
@@ -147,16 +162,21 @@ gulp.task("build", () => {
 
 
 function compileTypeScript() {
+    // TODO: Change this to just spawn a child process running tsc.
+    //   - Remove unneeded gulp packages
+
     const ts         = require("gulp-typescript");
     const sourcemaps = require("gulp-sourcemaps");
+
+    console.log("Compiling TypeScript...");
 
     // The gulp-typescript package interacts correctly with gulp if you
     // return this outer steam from your task function.  I, however, prefer
     // to use promises so that build steps can be composed in a more modular
     // fashion.
-    const tsResultDfd = createDeferred();
-    const jsDfd = createDeferred();
-    const dtsDfd = createDeferred();
+    const tsResultDfd = new Deferred();
+    const jsDfd       = new Deferred();
+    const dtsDfd      = new Deferred();
 
     const outDir = path.join(__dirname, "dist");
     let numErrors = 0;
@@ -233,42 +253,4 @@ function getTsConfig(tscConfigOverrides) {
 
     compilerOptions.typescript = require("typescript");
     return compilerOptions;
-}
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// Misc
-////////////////////////////////////////////////////////////////////////////////
-
-function spawn(cmd, args, cwd) {
-
-    return new Promise((resolve, reject) => {
-        const childProc = cp.spawn(
-            cmd,
-            args,
-            {
-                cwd: cwd,
-                stdio: "inherit"
-            }
-        );
-
-        childProc.once("exit", (exitCode) => {
-            if (exitCode === 0) {
-                resolve();
-            } else {
-                reject(new Error(`Child process exit code: ${exitCode}.`));
-            }
-        });
-    });
-}
-
-
-function createDeferred() {
-    const dfd = {};
-    dfd.promise = new Promise((resolve, reject) => {
-        dfd.resolve = resolve;
-        dfd.reject = reject;
-    });
-    return dfd;
 }

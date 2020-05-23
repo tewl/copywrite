@@ -11,7 +11,7 @@ const unlinkAsync = promisify1<void, string>(fs.unlink);
 const rmdirAsync = promisify1<void, string>(fs.rmdir);
 const readdirAsync = promisify1<Array<string>, string>(fs.readdir);
 const mkdirAsync = promisify1<void, string>(fs.mkdir);
-const statAsync  = promisify1<fs.Stats, string>(fs.stat);
+const lstatAsync  = promisify1<fs.Stats, string>(fs.lstat);
 
 
 export interface IDirectoryContents {
@@ -20,8 +20,39 @@ export interface IDirectoryContents {
 }
 
 
+export type WalkCallback = (item: Directory | File) => boolean | Promise<boolean>;
+
+
 export class Directory
 {
+
+    /**
+     * Creates a Directory representing the relative path from `from` to `to`
+     * @param from - The starting directory
+     * @param to - The ending directory
+     * @return A directory representing the relative path from `from` to `to`
+     */
+    public static relative(from: Directory, to: Directory): Directory
+    {
+        const relPath = path.relative(from.toString(), to.toString());
+        return new Directory(relPath);
+    }
+
+
+    /**
+     * Calculates the parts of the relative path from `from` to `to`.
+     * @param from - The starting point
+     * @param to - The ending point
+     * @return An array of strings representing the path segments needed to get
+     * from `from` to `to`.
+     */
+    public static relativeParts(from: Directory, to: Directory): Array<string>
+    {
+        const relPath = path.relative(from.toString(), to.toString());
+        return relPath.split(path.sep);
+    }
+
+
     // region Data Members
     private readonly _dirPath: string;
     // endregion
@@ -141,11 +172,10 @@ export class Directory
     }
 
 
-    public ensureExists(): Promise<void>
+    public ensureExists(): Promise<Directory>
     {
         return this.exists()
-        .then((stats) =>
-        {
+        .then((stats) => {
             if (stats)
             {
                 return;
@@ -208,15 +238,18 @@ export class Directory
                 // Execute the directory creation functions in sequence.
                 return sequence(createFuncs, undefined);
             }
+        })
+        .then(() => {
+            return this;
         });
     }
 
 
-    public ensureExistsSync(): void
+    public ensureExistsSync(): Directory
     {
         if (this.existsSync())
         {
-            return;
+            return this;
         }
 
         const parts = this._dirPath.split(path.sep);
@@ -258,10 +291,12 @@ export class Directory
                 }
             }
         });
+
+        return this;
     }
 
 
-    public empty(): Promise<void>
+    public empty(): Promise<Directory>
     {
         return this.delete()
         .then(() => {
@@ -270,10 +305,10 @@ export class Directory
     }
 
 
-    public emptySync(): void
+    public emptySync(): Directory
     {
         this.deleteSync();
-        this.ensureExistsSync();
+        return this.ensureExistsSync();
     }
 
 
@@ -349,34 +384,56 @@ export class Directory
 
     /**
      * Reads the contents of this directory.
-     * @return The contents of the directory, separated into a list of files and a
-     * list of subdirectories.  All paths returned are absolute paths.
+     * @param recursive - Whether to find subdirectories and files recursively
+     * @return The contents of the directory, separated into a list of files and
+     * a list of subdirectories.  The relative/absolute nature of the returned
+     * File and Directory objects will be determined by the relative/absolute
+     * nature of this Directory object.
      */
-    public contents(): Promise<IDirectoryContents>
+    public contents(recursive: boolean = false): Promise<IDirectoryContents>
     {
         const parentDirPath = this.toString();
 
         return readdirAsync(this._dirPath)
         .then((fsEntries) => {
-            const absPaths = fsEntries.map((curEntry) => {
+            const fsEntryPaths = fsEntries.map((curEntry) => {
                 return path.join(parentDirPath, curEntry);
             });
 
             const contents: IDirectoryContents = {subdirs: [], files: []};
 
-            const promises = absPaths.map((curPath) => {
-                return statAsync(curPath)
+            const promises = fsEntryPaths.map((curPath) => {
+                return lstatAsync(curPath)
                 .then((stats) => {
                     if (stats.isFile()) {
                         contents.files.push(new File(curPath));
                     } else if (stats.isDirectory()) {
                         contents.subdirs.push(new Directory(curPath));
                     }
+                    // Note: We are ignoring symbolic links here.
                 });
             });
 
             return BBPromise.all(promises)
             .then(() => {
+                return contents;
+            });
+        })
+        .then((contents: IDirectoryContents) => {
+            if (!recursive) {
+                return contents;
+            }
+
+            // Get the contents of each subdirectory.
+            return BBPromise.all<IDirectoryContents>(_.map(contents.subdirs, (curSubdir) => curSubdir.contents(true)))
+            .then((subdirContents: Array<IDirectoryContents>) => {
+                // Put the contents of each subdirectory into the returned
+                // `contents` object.
+                for (const curContents of subdirContents) {
+                    contents.subdirs = _.concat(contents.subdirs, curContents.subdirs);
+                    contents.files = _.concat(contents.files, curContents.files);
+                }
+
                 return contents;
             });
         });
@@ -385,10 +442,11 @@ export class Directory
 
     /**
      * Reads the contents of this directory.
+     * @param recursive - Whether to find subdirectories and files recursively
      * @return The contents of the directory, separated into a list of files and a
      * list of subdirectories.  All paths returned are absolute paths.
      */
-    public contentsSync(): IDirectoryContents
+    public contentsSync(recursive: boolean = false): IDirectoryContents
     {
         const parentDirPath = this.toString();
 
@@ -399,7 +457,7 @@ export class Directory
 
         const contents: IDirectoryContents = {subdirs: [], files: []};
         fsEntries.forEach((curFsEntry) => {
-            const stats = fs.statSync(curFsEntry);
+            const stats = fs.lstatSync(curFsEntry);
             if (stats.isFile())
             {
                 contents.files.push(new File(curFsEntry));
@@ -408,42 +466,18 @@ export class Directory
             {
                 contents.subdirs.push(new Directory(curFsEntry));
             }
+            // Note: We are ignoring symbolic links here.
         });
+
+        if (recursive) {
+            contents.subdirs.forEach((curSubdir) => {
+                const subdirContents = curSubdir.contentsSync(true);
+                contents.subdirs = _.concat(contents.subdirs, subdirContents.subdirs);
+                contents.files   = _.concat(contents.files,   subdirContents.files);
+            });
+        }
 
         return contents;
-    }
-
-
-    /**
-     * Enumerates the files in this Directory
-     * @param recursive - If true, files in all subdirectories will be returned
-     * @return A Promise that is resolved with an array of File objects
-     * representing the files in this directory.
-     */
-    public files(recursive: boolean): Promise<Array<File>>
-    {
-        return this.contents()
-        .then((contents) => {
-            let allFiles: Array<File> = contents.files;
-
-            let subdirsPromise: Promise<Array<Array<File>>> = BBPromise.resolve([[]]);
-
-            // If we need to recurse into the subdirectories, then do it.
-            if (recursive && contents.subdirs && contents.subdirs.length > 0) {
-                const promises = _.map(contents.subdirs, (curSubdir) => {
-                    return curSubdir.files(true);
-                });
-                subdirsPromise = BBPromise.all(promises);
-            }
-
-            return subdirsPromise
-            .then((subdirResults) => {
-                const subdirFiles = _.flatten(subdirResults);
-                allFiles = _.concat(allFiles, subdirFiles);
-                return allFiles;
-            });
-
-        });
     }
 
 
@@ -501,7 +535,18 @@ export class Directory
     }
 
 
-    public copy(destDir: Directory, copyRoot: boolean): Promise<void>
+    /**
+     * Copies this directory to destDir.
+     * @param destDir - The destination directory
+     * @param copyRoot - If true, this directory name will be a subdirectory of
+     * destDir.  If false, only the contents of this directory will be copied
+     * into destDir.
+     * @return A promise that is resolved with a Directory object representing
+     * the destination directory.  If copyRoot is false, this will be destDir.
+     * If copyRoot is true, this will be this Directory's counterpart
+     * subdirectory in destDir.
+     */
+    public copy(destDir: Directory, copyRoot: boolean): Promise<Directory>
     {
         if (copyRoot)
         {
@@ -513,6 +558,9 @@ export class Directory
             return thisDest.ensureExists()
             .then(() => {
                 return this.copy(thisDest, false);
+            })
+            .then(() => {
+                return thisDest;
             });
         }
 
@@ -530,12 +578,19 @@ export class Directory
             return BBPromise.all(_.concat<any>(fileCopyPromises, dirCopyPromises));
         })
         .then(() => {
-            // Make the resolve type void.
+            return destDir;
         });
     }
 
 
-    public copySync(destDir: Directory, copyRoot: boolean): void
+    /**
+     * Copies this directory to destDir.
+     * @param destDir - The destination directory
+     * @param copyRoot - If true, this directory name will be a subdirectory of
+     * destDir.  If false, only the contents of this directory will be copied
+     * into destDir.
+     */
+    public copySync(destDir: Directory, copyRoot: boolean): Directory
     {
         if (copyRoot)
         {
@@ -546,7 +601,7 @@ export class Directory
             const thisDest: Directory = new Directory(destDir, this.dirName);
             thisDest.ensureExistsSync();
             this.copySync(thisDest, false);
-            return;
+            return thisDest;
         }
 
         const contents = this.contentsSync();
@@ -559,6 +614,63 @@ export class Directory
         contents.subdirs.forEach((curSubdir) => {
             curSubdir.copySync(destDir, true);
         });
+
+        return destDir;
     }
 
+
+    /**
+     * Moves this Directory or the contents of this Directory to destDir.
+     * @param destDir - The destination directory
+     * @param moveRoot - If true, this directory name will be a subdirectory of
+     * destDir.  If false, only the contents of this directory will be copied
+     * into destDir.
+     * @return A promise that is resolved with a Directory object representing
+     * the destination directory.  If moveRoot is false, this will be destDir.
+     * If moveRoot is true, this will be this Directory's counterpart
+     * subdirectory in destDir.
+     */
+    public move(destDir: Directory, moveRoot: boolean): Promise<Directory>
+    {
+        return destDir.ensureExists()
+        .then(() => {
+            return this.copy(destDir, moveRoot);
+        })
+        .then((counterpartDestDir) => {
+            return this.delete()
+            .then(() => {
+                return counterpartDestDir;
+            });
+        });
+    }
+
+
+    /**
+     * Walks this Directory in a depth-first manner.
+     * @param cb - A callback function that will be called for each subdirectory
+     *   and file encountered.  It is invoked with one argument: (item).  When
+     *   item is a Directory, the function returns a boolean indicating whether
+     *   to recurse into the directory.  When item is a File, the returned value
+     *   is ignored.
+     * @return A promise that is resolved when the directory tree has been
+     *   completely walked.
+     */
+    public async walk(cb: WalkCallback): Promise<void>
+    {
+        const thisDirectoryContents = await this.contents(false);
+
+        // Invoke the callback for all files concurrently.
+        const filePromises: Array<Promise<boolean>> = _.map(thisDirectoryContents.files, (curFile: File) => {
+            return BBPromise.resolve(cb(curFile));
+        });
+        await BBPromise.all(filePromises);
+
+        // Process each of the subdirectories one at a time.
+        for (const curSubDir of thisDirectoryContents.subdirs) {
+            const shouldRecurse = await BBPromise.resolve(cb(curSubDir));
+            if (shouldRecurse) {
+                await curSubDir.walk(cb);
+            }
+        }
+    }
 }

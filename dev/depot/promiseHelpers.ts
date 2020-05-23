@@ -3,7 +3,6 @@ import {EventEmitter} from "events";
 import * as _ from "lodash";
 import {ListenerTracker} from "./listenerTracker";
 import * as BBPromise from "bluebird";
-import {logger} from "./logger";
 
 
 export type CallBackType<ResultType> = (err: any, result?: ResultType) => void;
@@ -136,7 +135,7 @@ export type Task<ResolveType> = () => Promise<ResolveType>;
  * should throw an exception if it wishes to terminate the sequence and reject
  * the returned promise.
  * @param initialValue - The value that will be passed into the first function.
- * @returns {Promise<any>} A promise that will be resolved with the return value
+ * @returns A promise that will be resolved with the return value
  * of the last function.
  */
 export function sequence(
@@ -206,6 +205,30 @@ export function getTimerPromise<ResolveType>(
 
 
 /**
+ * Invokes a task only when a condition is true.
+ * @param condition - The condition that controls whether the task is run
+ * @param task - The task that is run when `condition` is truthy
+ * @param falseResolveValue - The value the returned promise will resolve with
+ * when `condition` is falsy.
+ * @return When `condition` is true, a promise that resolves with the result of
+ * `task`.  When `condition` is false, a promise that resolves with
+ * `falseResolveValue`.
+ */
+export function conditionalTask<ResolveType>(
+    condition: any,
+    task: Task<ResolveType>,
+    falseResolveValue: ResolveType
+): Promise<ResolveType> {
+    if (condition) {
+        return task();
+    }
+    else {
+        return BBPromise.resolve(falseResolveValue);
+    }
+}
+
+
+/**
  * Adapts an EventEmitter to a Promise interface
  * @param emitter - The event emitter to listen to
  * @param resolveEventName - The event that will cause the Promise to resolve
@@ -262,7 +285,7 @@ export function streamToPromise(stream: Writable): Promise<void> {
  * rejecting the returned Promise.  This argument should always be greater than
  * or equal to 1.  If it is not, theFunc will be tried only once.
  *
- * @returns {Promise} A Promise that will be resolved immediately (with the same
+ * @returns A Promise that will be resolved immediately (with the same
  * value) when the promise returned by the Func resolves.  If the Promise
  * returned by theFunc rejects, it will be retried up to maxNumAttempts
  * invocations.  If the Promise returned by the last invocation of theFunc
@@ -294,7 +317,7 @@ export function retry<ResolveType>(
  * rejecting the returned Promise.  This argument should always be greater than
  * or equal to 1.  If it is not, theFunc will be tried only once.
  *
- * @returns {Promise} A Promise that will be resolved immediately (with the same
+ * @returns A Promise that will be resolved immediately (with the same
  * value) when the promise returned by the Func resolves.  If the Promise
  * returned by theFunc rejects, it will be retried up to maxNumAttempts
  * invocations.  If the Promise returned by the last invocation of theFunc
@@ -312,7 +335,6 @@ export function retryWhile<ResolveType>(
 /**
  * The value that will be multiplied by successively higher powers of 2 when
  * calculating delay time during exponential backoff.
- * @type {number}
  */
 const BACKOFF_MULTIPLIER: number = 20;
 
@@ -324,7 +346,7 @@ const BACKOFF_MULTIPLIER: number = 20;
  * @param whilePredicate - Predicate that determines whether to retry
  * @param maxNumAttempts - Maximum number of invocations of theFunc
  * @param attemptsSoFar - Number of theFunc invocations so far
- * @returns {Promise} The Promise returned to the client
+ * @returns The Promise returned to the client
  */
 function retryWhileImpl<ResolveType>(
     theFunc:         () => Promise<ResolveType>,
@@ -347,10 +369,10 @@ function retryWhileImpl<ResolveType>(
                 (err: any): void => {
                     // The promise was rejected.
                     if (attemptsSoFar >= maxNumAttempts) {
-                        logger.error("Retry operation failed after " + maxNumAttempts + " attempts.");
+                        // logger.error("Retry operation failed after " + maxNumAttempts + " attempts.");
                         reject(err);
                     } else if (!whilePredicate(err)) {
-                        logger.error("Stopped retrying operation because while predicate returned false." + err);
+                        // logger.error("Stopped retrying operation because while predicate returned false." + err);
                         reject(err);
                     } else {
                         const backoffBaseMs: number = Math.pow(2, attemptsSoFar - 1) * BACKOFF_MULTIPLIER;
@@ -366,7 +388,7 @@ function retryWhileImpl<ResolveType>(
                         const randomMs: number = _.random(-1 * randomHalfRange, randomHalfRange);
                         const delayMs: number = backoffBaseMs + randomMs;
 
-                        logger.info("Failed. Queuing next attempt in " + backoffBaseMs + " + " + randomMs + " (" + delayMs + ") ms\n");
+                        // logger.info("Failed. Queuing next attempt in " + backoffBaseMs + " + " + randomMs + " (" + delayMs + ") ms\n");
                         const timerPromise: Promise<void> = getTimerPromise(delayMs, undefined);
                         resolve(
                             timerPromise
@@ -388,7 +410,7 @@ function retryWhileImpl<ResolveType>(
  * body.  Iteration will stop when this function returns false.
  * @param body - A promise returning function that will be invoked for each
  * iteration.  This function is responsible for making predicate eventually return false.
- * @returns {Promise<void>} A Promise that is resolved when all iterations have
+ * @returns A Promise that is resolved when all iterations have
  * successfully completed or will be rejected when body returns a rejected promise.
  */
 export function promiseWhile(predicate: () => boolean, body: Task<void>): Promise<void> {
@@ -412,5 +434,61 @@ export function promiseWhile(predicate: () => boolean, body: Task<void>): Promis
         // Get things started.  loop() will queue itself to run for further
         // iterations.
         setTimeout(loop, 0);
+    });
+}
+
+
+/**
+ * Maps an array of Promises to a new same sized array of Promises.  The new
+ * array of Promises will settle starting at index 0 and continue through the
+ * array sequentially.
+ * @param inputPromises - The array of Promises to transform
+ * @returns A new array of Promises that will settle sequentially,
+ * starting at index 0.
+ */
+export function sequentialSettle(inputPromises: Array<Promise<any>>): Array<Promise<any>> {
+    "use strict";
+
+    const outputPromises: Array<Promise<any>> = [];
+
+    _.forEach(inputPromises, (curInputPromise) => {
+        const previousPromise: Promise<any> = outputPromises.length > 0 ?
+                                              outputPromises[outputPromises.length - 1] :
+                                              BBPromise.resolve();
+
+        const promise: Promise<any> = delaySettle(curInputPromise, previousPromise);
+        outputPromises.push(promise);
+    });
+
+    return outputPromises;
+}
+
+
+/**
+ * Returns a promise that wraps thePromise, but will be resolved or rejected
+ * after the resolution or rejection of waitFor.
+ * @param thePromise - the Promise to be wrapped/delayed
+ * @param waitFor - The Promise that must be settled before the returned promise
+ * will settle.
+ * @returns A Promise wrapping thePromise, but will be settled after waitFor is
+ * settled
+ */
+export function delaySettle<ResolveType>(thePromise: Promise<ResolveType>, waitFor: Promise<any>): Promise<ResolveType> {
+    "use strict";
+
+    return thePromise
+    .then((result: ResolveType) => {
+        // Whether waitFor resolved or rejected, we should resolve
+        // with the original resolved value.
+        return waitFor
+        .then(() => result )
+        .catch(() => result );
+    })
+    .catch((err: any) => {
+        // Whether waitFor resolved or rejected, we should reject with the
+        // original error.
+        return waitFor
+        .then(() => { throw err; })
+        .catch(() => { throw err; });
     });
 }

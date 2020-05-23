@@ -20,28 +20,28 @@
   },
   "homepage": "https://github.com/tewl/copywrite#readme",
   "devDependencies": {
-    "@types/bluebird": "^3.5.24",
+    "@types/bluebird": "3.5.27",
     "@types/inquirer": "0.0.43",
-    "@types/jasmine": "^2.8.6",
-    "@types/lodash": "^4.14.116",
-    "@types/node": "9.4.6",
+    "@types/jasmine": "2.8.15",
+    "@types/lodash": "4.14.120",
+    "@types/node": "10.12.30",
     "@types/text-table": "^0.2.0",
-    "@types/yargs": "^12.0.1",
-    "del": "^3.0.0",
-    "gulp": "^3.9.1",
-    "gulp-sourcemaps": "^2.6.4",
-    "gulp-typescript": "^4.0.2",
-    "jasmine": "3.1.0",
-    "strip-json-comments": "^2.0.1",
-    "ts-node": "^7.0.1",
-    "tslint": "^5.11.0",
-    "typescript": "^2.9.2"
+    "@types/yargs": "12.0.1",
+    "del": "3.0.0",
+    "gulp": "3.9.1",
+    "gulp-sourcemaps": "2.6.4",
+    "gulp-typescript": "4.0.2",
+    "jasmine": "2.8.0",
+    "strip-json-comments": "2.0.1",
+    "ts-node": "5.0.1",
+    "tslint": "5.17.0",
+    "typescript": "3.5.1"
   },
   "dependencies": {
-    "bluebird": "^3.5.2",
-    "inquirer": "^6.2.0",
-    "lodash": "^4.17.10",
+    "bluebird": "3.5.5",
+    "inquirer": "6.2.0",
+    "lodash": "4.17.13",
     "text-table": "^0.2.0",
-    "yargs": "^12.0.2"
+    "yargs": "12.0.2"
   }
 }
