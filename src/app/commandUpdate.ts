@@ -101,6 +101,7 @@ export function handler(args: Arguments): void {
             console.log(previewTable);
             return promptToContinue(
                 `Proceed with copying ${copyOperations.length} files?`,
+                true,
                 copyOperations
             );
         }
@@ -122,8 +123,9 @@ function getFileMap(dir: Directory): Promise<{[s: string]: File}> {
     // directories?
 
     // Recursively get all files in the directory.
-    return dir.files(true)
-    .then((dstFiles) => {
+    return dir.contents(true)
+    .then((directoryContents) => {
+        const dstFiles = directoryContents.files;
 
         // Reduce the array of files into an object where the file name (no
         // path) is the key and the File object is the value.
