@@ -2,6 +2,7 @@ const path = require("path");
 // Allow use of TS files.
 require('ts-node').register({project: path.join(__dirname, "tsconfig.json")});
 const fs = require("fs");
+const os = require("os");
 const gulp = require("gulp");
 const del = require("del");
 const _ = require("lodash");
@@ -9,6 +10,7 @@ const spawn = require("./dev/depot/spawn").spawn;
 const Deferred = require("./dev/depot/deferred").Deferred;
 const toGulpError = require("./dev/depot/gulpHelpers").toGulpError;
 const nodeBinForOs = require("./dev/depot/nodeUtil").nodeBinForOs;
+const indent = require("./dev/depot/stringHelpers").indent;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Default
@@ -219,13 +221,14 @@ function compileTypeScript() {
 
 
 function makeExecutable() {
-    console.log("Making copywrite.js executable...");
+    const { Directory } = require("./dev/depot/directory");
+    const { makeAllJsScriptsExecutable } = require("./dev/depot/nodeUtil");
 
-    const {File} = require("./dev/depot/file");
-    const {makeNodeScriptExecutable} = require("./dev/depot/nodeUtil");
-
-    const executableFile = new File("dist", "app", "copywrite.js");
-    return makeNodeScriptExecutable(executableFile);
+    return makeAllJsScriptsExecutable(new Directory(".", "dist", "app"), false)
+    .then((scriptFiles) => {
+        console.log("Made scripts executable:");
+        console.log(indent(scriptFiles.join(os.EOL), 4));
+    });
 }
 
 
